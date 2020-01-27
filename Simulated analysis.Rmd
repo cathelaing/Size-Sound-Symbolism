@@ -1,0 +1,354 @@
+---
+title: "Data Analysis Plan RR JCL"
+author: "Catherine Laing"
+date: "09/01/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+source("dummy data RR.R") # run simulated data to generate sample_data_P1P2 and sample_data_P3
+```
+
+```{r add libraries}
+library(ggplot2)
+library(lme4)
+library(readr)
+library(forcats)
+library(effsize)
+library(rcompanion)
+
+```
+
+```{r check for outliers}
+
+# Outliers defined as any productions that vary more than 3 standard deviations from the mean in each direction
+# Group by experiments as we are expecting differences across paradigms
+
+sample_data_P1P2 %>% group_by(paradigm) %>%
+  mutate(outlier = (MOTpitch > 
+                      (mean(MOTpitch, na.rm=T) + 
+                         3*(sd(MOTpitch, na.rm=T))) |
+                      MOTpitch <
+                      (mean(MOTpitch, na.rm=T) - 
+                         3*(sd(MOTpitch, na.rm=T))))) %>%
+  filter(outlier == TRUE)  
+
+sample_data_P3 %>% group_by(paradigm) %>%
+  mutate(outlier = (MOTpitch > 
+                      (mean(MOTpitch, na.rm=T) + 
+                         3*(sd(MOTpitch, na.rm=T))) |
+                      MOTpitch <
+                      (mean(MOTpitch, na.rm=T) - 
+                         3*(sd(MOTpitch, na.rm=T))))) %>%
+  filter(outlier == TRUE)  
+
+# remove any outliers from analysis and re-run to test for differences in alpha level with and without outliers
+```
+
+# Descriptive statistics
+
+
+```{r descriptive statistics between paradigms}
+
+sample_data_P1P2 %>%                                     
+  summarise(meanpitch = mean(MOTpitch, na.rm=T),
+            sdpitch = sd(MOTpitch, na.rm = T))
+
+sample_data_P1P2 %>% group_by(paradigm) %>%               # mean across conditions, P1 & P2         
+  summarise(meanpitch = mean(MOTpitch, na.rm=T),
+            sdpitch = sd(MOTpitch, na.rm = T))
+
+sample_data_P3 %>%                                       # mean across conditions   , P3            
+  summarise(meanpitch = mean(MOTpitch, na.rm=T),
+            sdpitch = sd(MOTpitch, na.rm = T))
+
+```
+
+
+
+# Analysis of potentially confounding variables
+
+```{r checking for confounding variables}
+
+# Does infant age or sex, or experimental item, affect mothers' pitch?
+
+# Age
+
+age.model.P1P2 <- lm(MOTpitch ~ age, data = sample_data_P1P2)
+summary(age.model.P1P2)
+
+age.model.P3 <- lm(MOTpitch ~ age, data = sample_data_P3)
+summary(age.model.P3)
+
+# Sex
+
+sex.model.P1P2 <- lm(MOTpitch ~ sex, data = sample_data_P1P2)
+summary(sex.model.P1P2)
+
+sex.model.P3 <- lm(MOTpitch ~ sex, data = sample_data_P3)
+summary(sex.model.P3)
+
+# item
+
+item.model.P1P2 <- lm(MOTpitch ~ item, data = sample_data_P1P2)
+summary(item.model.P1P2)
+
+item.model.P3 <- lm(MOTpitch ~ item, data = sample_data_P3)
+summary(item.model.P3)
+
+```
+
+# Analysis 1: Paradigms 1 & 2
+
+```{r paradigms 1 & 2 descriptive statistics}
+
+# Size
+
+sample_data_P1P2 %>%                                         # Across paradigms
+  group_by(size) %>%
+  summarise(meansizeP1P2 = mean(MOTpitch, na.rm=T),
+            sdsizeP1P2 = sd(MOTpitch, na.rm=T))  
+
+sample_data_P1P2 %>%                                         # Paradigms  1 and 2, within paradigms
+  group_by(size, paradigm) %>%
+  summarise(meansizeP1P2 = mean(MOTpitch, na.rm=T),
+            sdsizeP1P2 = sd(MOTpitch, na.rm=T))  
+
+
+# Congruence
+
+sample_data_P1P2 %>%                                         # Across paradigms
+  group_by(cong) %>%
+  summarise(meancongP1P2 = mean(MOTpitch, na.rm=T),
+            sdcongP1P2 = sd(MOTpitch, na.rm=T))  
+
+sample_data_P1P2 %>%                                         # Paradigms  1 and 2, within paradigms
+  group_by(cong, paradigm) %>%
+  summarise(meancongP1P2 = mean(MOTpitch, na.rm=T),
+            sdcongP1P2 = sd(MOTpitch, na.rm=T))    
+
+
+
+```
+
+# Figure 1A-B: Plotting mothers' mean pitch across size and expected size variables in free play setting vs. semi-structured play
+
+```{r Figure 1A}
+
+paradigm_numbers <- c("-1" = "Paradigm 1",
+                      "1" = "Paradigm 2",
+                      "3" = "Paradigm 3")
+
+size <- c("-1" = "Large objects",
+          "1" = "Small objects")
+
+Figure1A <- ggplot(subset(sample_data_P1P2), aes(x = as.factor(size), y = MOTpitch, color = as.factor(size))) +
+  geom_point(aes(group=size), shape = 1, size = 4, position=position_dodge(-.2)) +
+  stat_summary(geom = "pointrange", 
+               size=1.5,  
+               colour = "red") +
+    scale_x_discrete(limits = c("1", "-1"),
+                   labels = c("small", "large")) +
+  xlab("Actual Object Size") +
+  ylab("Mothers' pitch (Hz)") +
+  ggtitle("Size difference") +
+  theme_bw(base_size=25) +
+   theme(axis.text = element_text(size = 20),
+         axis.title = element_text(size=20),
+         legend.position = "none") +
+  facet_wrap(~paradigm, ncol = 2, labeller = as_labeller(paradigm_numbers))
+plot(Figure1A)
+```
+
+```{r Figure 1B}
+
+Figure1B <- ggplot(subset(sample_data_P1P2, paradigm == -1), aes(x = as.factor(cong), y = MOTpitch)) +
+  geom_point(aes(group=as.factor(cong), color = as.factor(cong)), shape = 1, size = 4, position=position_dodge(-.2)) +
+    stat_summary(geom = "pointrange", 
+               size=1.5,  
+               colour = "red") +
+  scale_x_discrete(limits = c("1", "-1"),
+                   labels = c("congruent", "reversed")) +
+  xlab("Real-world congruence") +
+  ylab("Mothers' pitch (Hz)") +
+  ggtitle("Expected Object Size: Paradigm 1") +
+  theme_bw(base_size=25) +
+   theme(axis.text = element_text(size = 20),
+         axis.title = element_text(size=20),
+         legend.position = "none")  +
+  facet_wrap(~size, ncol = 2, labeller = as_labeller(size))
+
+plot(Figure1B)
+```
+
+```{r paradigm 1 & 2 modelling differences across variables}
+
+modelP1P2 <- lmer(MOTpitch ~ size*cong*paradigm + 
+                           (1+size*cong*paradigm|subj) + 
+                           (1+size*cong*paradigm|item) + 
+                           (1+size*cong*paradigm|word), 
+                            data = sample_data_P1P2,  REML=FALSE) 
+
+modelP1P2.null.size <- lmer(MOTpitch ~ cong*paradigm + 
+                           (1+size*cong*paradigm|subj) + 
+                           (1+size*cong*paradigm|item) + 
+                           (1+size*cong*paradigm|word), 
+                            data = sample_data_P1P2, REML=FALSE)
+
+modelP1P2.null.cong <- lmer(MOTpitch ~ size*paradigm + 
+                           (1+size*cong*paradigm|subj) + 
+                           (1+size*cong*paradigm|item) + 
+                           (1+size*cong*paradigm|word), 
+                            data = sample_data_P1P2, REML=FALSE)
+
+modelP1P2.null.paradigm <- lmer(MOTpitch ~ size*cong + 
+                           (1+size*cong*paradigm|subj) + 
+                           (1+size*cong*paradigm|item) + 
+                           (1+size*cong*paradigm|word), 
+                            data = sample_data_P1P2, REML=FALSE)
+
+anova(modelP1P2, modelP1P2.null.size) # test for effect of object size on mothers' pitch
+anova(modelP1P2, modelP1P2.null.cong) # test for effect of object congruence on mothers' pitch
+anova(modelP1P2, modelP1P2.null.paradigm) # test for effect of paradigm on mothers' pitch
+
+## Shayne: Need to add other comparisons here, I think
+
+```
+
+
+# Analysis 2: Paradigm 3
+
+```{r paradigm 3 descriptive statistics}
+
+# Size
+
+sample_data_P3 %>% 
+  group_by(size) %>%
+  summarise(meansizeP3 = mean(MOTpitch, na.rm=T),
+            sdsizeP3 = sd(MOTpitch, na.rm=T))  
+
+# Colour (control condition)
+
+sample_data_P3 %>% 
+  group_by(colour) %>%
+  summarise(meancolourP3 = mean(MOTpitch, na.rm=T),
+            sdscolourP3 = sd(MOTpitch, na.rm=T))   
+ 
+
+```
+
+# Figure 2A&B: Plotting mothers' mean pitch according to size (test) and colour (control) of object in Paradigm 3
+
+```{r Figure 2A}
+
+Figure2A <- ggplot(sample_data_P3, aes(x = as.factor(size), y = MOTpitch)) +
+  geom_point(aes(group=as.factor(size), color = as.factor(size)), shape = 1, size = 4, position=position_dodge(-.2)) +
+    stat_summary(geom = "pointrange", 
+               size=1.5,  
+               colour = "red") +
+  scale_x_discrete(limits = c("1", "-1"),
+                   labels = c("Large", "Small")) +
+  xlab("Object size") +
+  ylab("Mothers' pitch (Hz)") +
+  ggtitle("Object Size, Paradigm 3") +
+  theme_bw(base_size=25) +
+   theme(axis.text = element_text(size = 20),
+         axis.title = element_text(size=20),
+         legend.position = "none")
+
+plot(Figure2A)
+```
+
+```{r Figure 2B}
+
+Figure2B <- ggplot(sample_data_P3, aes(x = as.factor(colour), y = MOTpitch)) +
+  geom_point(aes(group=as.factor(colour), color = as.factor(colour)), shape = 1, size = 4, position=position_dodge(-.2)) +
+    stat_summary(geom = "pointrange", 
+               size=1.5,  
+               colour = "red") +
+  scale_x_discrete(limits = c("1", "-1"),
+                   labels = c("ColourA", "ColourB")) +
+  xlab("Object Colour") +
+  ylab("Mothers' pitch (Hz)") +
+  ggtitle("Object Colour, Paradigm 3") +
+  theme_bw(base_size=25) +
+   theme(axis.text = element_text(size = 20),
+         axis.title = element_text(size=20),
+         legend.position = "none")
+
+plot(Figure2B)
+```
+
+
+
+```{r modelling differences across variables in paradigm 3}
+
+modelP3 <- lmer(MOTpitch ~ size + colour + (1+size+colour|subj) + (1+size+colour|item), data = sample_data_P3, REML = FALSE)
+
+modelP3.null.size <- lmer(MOTpitch ~ colour + (1+size+colour|subj) + (1+size+colour|item), data = sample_data_P3, REML = FALSE)
+
+modelP3.null.colour <- lmer(MOTpitch ~ size + (1+size+colour|subj) + (1+size+colour|item), data = sample_data_P3, REML = FALSE)
+
+anova(modelP3, modelP3.null.size) # test for effect of size
+anova(modelP3, modelP3.null.colour) # test for effect of colour
+
+
+# Shayne: we also need to confirm this model and its comparisons
+
+```
+
+# Analysis 3: Differences across paradigms
+
+```{r cross-paradigm descriptives}
+
+sample_data_P123 %>% 
+  group_by(paradigm) %>%
+  summarise(meanpitch = mean(MOTpitch, na.rm=T),
+            sdspitch = sd(MOTpitch, na.rm=T))   
+ 
+```
+
+```{r testing for pitch~size differences with paradigm as a factor}
+
+modelP123 <- lmer(MOTpitch ~ size*paradigm + 
+                    (1+size*paradigm|subj) + 
+                    (1+size*paradigm|word), 
+                  data = sample_data_P123, REML = FALSE)
+
+modelP123.null.size <- lmer(MOTpitch ~ paradigm + 
+                    (1+size*paradigm|subj) + 
+                    (1+size*paradigm|word), 
+                  data = sample_data_P123, REML = FALSE)
+
+modelP123.null.paradigm <- lmer(MOTpitch ~ size + 
+                    (1+size*paradigm|subj) + 
+                    (1+size*paradigm|word), 
+                  data = sample_data_P123, REML = FALSE)
+
+anova(modelP123, modelP123.null.size)
+anova(modelP123, modelP123.null.paradigm)
+
+```
+
+
+```{r Figure 3}
+
+Figure3 <- ggplot(subset(sample_data_P123), aes(x = as.factor(size), y = MOTpitch, color = as.factor(size))) +
+  geom_point(aes(group=size), shape = 1, size = 4, position=position_dodge(-.2)) +
+  stat_summary(geom = "pointrange", 
+               size=1.5,  
+               colour = "red") +
+    scale_x_discrete(limits = c("1", "-1"),
+                   labels = c("small", "large")) +
+  xlab("Actual Object Size") +
+  ylab("Mothers' pitch (Hz)") +
+  ggtitle("Size difference") +
+  theme_bw(base_size=25) +
+   theme(axis.text = element_text(size = 20),
+         axis.title = element_text(size=20),
+         legend.position = "none") +
+  facet_wrap(~paradigm, ncol = 3, labeller = as_labeller(paradigm_numbers))
+
+plot(Figure3)
+
+```
